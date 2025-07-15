@@ -1,0 +1,64 @@
+{
+  "products": [
+    {
+      "id": "laptop-macbook-pro-16",
+      "title": "MacBook Pro 16-inch M3 Max",
+      "description": "Professional laptop with M3 Max chip, 36GB unified memory, 1TB SSD storage. Perfect for developers, video editors, and creative professionals. Features Liquid Retina XDR display, advanced thermal design, and all-day battery life."
+    },
+    {
+      "id": "smartphone-iphone-15-pro",
+      "title": "iPhone 15 Pro",
+      "description": "Latest iPhone with A17 Pro chip, titanium design, and advanced camera system. Features 48MP main camera, 5x telephoto zoom, Action Button, and USB-C connectivity. Available in Natural Titanium, Blue Titanium, White Titanium, and Black Titanium."
+    },
+    {
+      "id": "tablet-ipad-pro-12-9",
+      "title": "iPad Pro 12.9-inch M2",
+      "description": "Professional tablet with M2 chip and Liquid Retina XDR display. Perfect for digital art, note-taking, and productivity. Compatible with Apple Pencil (2nd generation) and Magic Keyboard. Features Face ID, Center Stage, and studio-quality mics."
+    },
+    {
+      "id": "smartwatch-apple-watch-series-9",
+      "title": "Apple Watch Series 9 GPS + Cellular",
+      "description": "Advanced smartwatch with S9 SiP chip, always-on Retina display, and comprehensive health monitoring. Features ECG, blood oxygen monitoring, sleep tracking, and crash detection. Water resistant to 50 meters with swim-proof design."
+    },
+    {
+      "id": "headphones-airpods-pro-2",
+      "title": "AirPods Pro (2nd generation)",
+      "description": "Premium wireless earbuds with Active Noise Cancellation, Transparency mode, and Spatial Audio. Features H2 chip for superior audio quality, adaptive EQ, and up to 6 hours of listening time. Includes MagSafe charging case."
+    },
+    {
+      "id": "gaming-laptop-asus-rog",
+      "title": "ASUS ROG Strix G17 Gaming Laptop",
+      "description": "High-performance gaming laptop with AMD Ryzen 9 processor, NVIDIA GeForce RTX 4070 graphics, 32GB DDR5 RAM, and 1TB NVMe SSD. Features 17.3-inch QHD 240Hz display, RGB keyboard, and advanced cooling system for intense gaming sessions."
+    },
+    {
+      "id": "camera-sony-a7r5",
+      "title": "Sony Alpha a7R V Mirrorless Camera",
+      "description": "Professional full-frame mirrorless camera with 61MP resolution, 8K video recording, and advanced AI autofocus. Features 5-axis in-body stabilization, dual card slots, and weather-sealed body. Perfect for landscape, portrait, and commercial photography."
+    },
+    {
+      "id": "monitor-lg-ultrawide-34",
+      "title": "LG UltraWide 34-inch Curved Monitor",
+      "description": "Professional curved ultrawide monitor with 3440x1440 QHD resolution, 144Hz refresh rate, and 1ms response time. Features HDR10 support, USB-C connectivity with 90W power delivery, and height-adjustable stand. Ideal for productivity and gaming."
+    },
+    {
+      "id": "keyboard-mechanical-keychron-k8",
+      "title": "Keychron K8 Wireless Mechanical Keyboard",
+      "description": "Premium wireless mechanical keyboard with hot-swappable switches, RGB backlighting, and Mac/Windows compatibility. Features 87-key layout, aluminum frame, and up to 240 hours battery life. Includes USB-C to USB-A cable and keycap puller."
+    },
+    {
+      "id": "mouse-logitech-mx-master-3s",
+      "title": "Logitech MX Master 3S Wireless Mouse",
+      "description": "Advanced wireless mouse with 8000 DPI sensor, MagSpeed electromagnetic scrolling, and customizable buttons. Features USB-C fast charging, multi-device connectivity, and ergonomic design. Compatible with Windows, Mac, Linux, and iPadOS."
+    },
+    {
+      "id": "speaker-sonos-era-300",
+      "title": "Sonos Era 300 Smart Speaker",
+      "description": "Premium smart speaker with spatial audio, Dolby Atmos support, and voice control. Features six drivers, advanced acoustic engineering, and multi-room audio capabilities. Works with Amazon Alexa, Google Assistant, and Sonos Voice Control."
+    },
+    {
+      "id": "tv-samsung-qn90c-65",
+      "title": "Samsung 65-inch QN90C Neo QLED 4K TV",
+      "description": "Premium 4K smart TV with Quantum Matrix Technology, Neural Quantum Processor 4K, and Dolby Atmos sound. Features 120Hz refresh rate, Game Mode Pro, and extensive streaming app support. Includes Solar Cell Remote and premium stand design."
+    }
+  ]
+} 

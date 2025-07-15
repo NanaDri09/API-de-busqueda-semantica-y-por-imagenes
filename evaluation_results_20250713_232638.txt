@@ -1,0 +1,227 @@
+SEMANTIC SEARCH EVALUATION RESULTS
+==================================================
+Timestamp: 2025-07-13T23:26:38.904579
+Dataset: Spanish Tech Products (69 items)
+Queries: 26 test queries
+Methods: 8 search methods
+
+
+📊 COMPREHENSIVE EVALUATION RESULTS
+================================================================================
+
+Method          P@1    P@3    P@5    NDCG@5   MAP     MRR     Time(ms)  
+--------------------------------------------------------------------------------
+semantic        0.731  0.410  0.385  0.545    0.502   0.812   341.9
+keyword         0.269  0.179  0.138  0.227    0.187   0.357   0.8
+hybrid          0.538  0.372  0.346  0.481    0.458   0.708   331.2
+rrf             0.385  0.321  0.231  0.345    0.289   0.560   292.6
+balanced        0.269  0.179  0.138  0.227    0.187   0.357   0.4
+speed_first     0.269  0.179  0.138  0.227    0.187   0.357   0.3
+quality_first   0.731  0.410  0.385  0.545    0.502   0.812   317.4
+rrf_only        0.385  0.308  0.231  0.342    0.293   0.557   309.7
+
+🏆 BEST METHOD DETAILED METRICS
+Method: semantic
+Queries evaluated: 26
+
+Precision Metrics:
+  P@1:  0.7308
+  P@3:  0.4103
+  P@5:  0.3846
+  P@10: 0.2846
+
+Recall Metrics:
+  R@1:  0.2167
+  R@3:  0.3442
+  R@5:  0.5269
+  R@10: 0.7641
+
+NDCG Metrics:
+  NDCG@1:  0.7308
+  NDCG@3:  0.5051
+  NDCG@5:  0.5446
+  NDCG@10: 0.6622
+
+Overall Quality:
+  MAP (Mean Average Precision): 0.5021
+  MRR (Mean Reciprocal Rank):   0.8122
+
+Performance:
+  Mean execution time:   341.9ms
+  Median execution time: 319.8ms
+
+
+DETAILED METRICS BY METHOD
+==================================================
+
+SEMANTIC
+--------------------
+Precision@1:  0.7308
+Precision@3:  0.4103
+Precision@5:  0.3846
+Precision@10: 0.2846
+NDCG@1:       0.7308
+NDCG@3:       0.5051
+NDCG@5:       0.5446
+NDCG@10:      0.6622
+MAP:          0.5021
+MRR:          0.8122
+Avg Time:     341.9ms
+Median Time:  319.8ms
+
+KEYWORD
+--------------------
+Precision@1:  0.2692
+Precision@3:  0.1795
+Precision@5:  0.1385
+Precision@10: 0.1000
+NDCG@1:       0.2692
+NDCG@3:       0.2237
+NDCG@5:       0.2266
+NDCG@10:      0.2655
+MAP:          0.1870
+MRR:          0.3566
+Avg Time:     0.8ms
+Median Time:  0.0ms
+
+HYBRID
+--------------------
+Precision@1:  0.5385
+Precision@3:  0.3718
+Precision@5:  0.3462
+Precision@10: 0.2769
+NDCG@1:       0.5385
+NDCG@3:       0.4459
+NDCG@5:       0.4811
+NDCG@10:      0.6168
+MAP:          0.4581
+MRR:          0.7077
+Avg Time:     331.2ms
+Median Time:  300.9ms
+
+RRF
+--------------------
+Precision@1:  0.3846
+Precision@3:  0.3205
+Precision@5:  0.2308
+Precision@10: 0.1731
+NDCG@1:       0.3846
+NDCG@3:       0.3595
+NDCG@5:       0.3452
+NDCG@10:      0.4163
+MAP:          0.2892
+MRR:          0.5597
+Avg Time:     292.6ms
+Median Time:  284.2ms
+
+BALANCED
+--------------------
+Precision@1:  0.2692
+Precision@3:  0.1795
+Precision@5:  0.1385
+Precision@10: 0.1000
+NDCG@1:       0.2692
+NDCG@3:       0.2237
+NDCG@5:       0.2266
+NDCG@10:      0.2655
+MAP:          0.1870
+MRR:          0.3566
+Avg Time:     0.4ms
+Median Time:  0.0ms
+
+SPEED_FIRST
+--------------------
+Precision@1:  0.2692
+Precision@3:  0.1795
+Precision@5:  0.1385
+Precision@10: 0.1000
+NDCG@1:       0.2692
+NDCG@3:       0.2237
+NDCG@5:       0.2266
+NDCG@10:      0.2655
+MAP:          0.1870
+MRR:          0.3566
+Avg Time:     0.3ms
+Median Time:  0.0ms
+
+QUALITY_FIRST
+--------------------
+Precision@1:  0.7308
+Precision@3:  0.4103
+Precision@5:  0.3846
+Precision@10: 0.2846
+NDCG@1:       0.7308
+NDCG@3:       0.5051
+NDCG@5:       0.5446
+NDCG@10:      0.6624
+MAP:          0.5024
+MRR:          0.8122
+Avg Time:     317.4ms
+Median Time:  279.8ms
+
+RRF_ONLY
+--------------------
+Precision@1:  0.3846
+Precision@3:  0.3077
+Precision@5:  0.2308
+Precision@10: 0.1808
+NDCG@1:       0.3846
+NDCG@3:       0.3505
+NDCG@5:       0.3424
+NDCG@10:      0.4246
+MAP:          0.2927
+MRR:          0.5565
+Avg Time:     309.7ms
+Median Time:  299.2ms
+
+
+
+📚 METRICS EXPLANATION
+
+🎯 PRECISION@K
+- Measures accuracy of top K results
+- P@5 = (relevant items in top 5) / 5
+- Higher = better, Range: 0.0-1.0
+
+📈 RECALL@K  
+- Measures coverage of relevant items in top K
+- R@5 = (relevant items in top 5) / (total relevant items)
+- Higher = better, Range: 0.0-1.0
+
+⚖️ F1@K
+- Harmonic mean of Precision@K and Recall@K
+- Balances precision and recall
+- Higher = better, Range: 0.0-1.0
+
+🏆 NDCG@K (Normalized Discounted Cumulative Gain)
+- Considers ranking quality with position-based discounting
+- Higher-ranked relevant items contribute more to the score
+- Most important metric for ranking quality
+- Higher = better, Range: 0.0-1.0
+
+📊 MAP (Mean Average Precision)
+- Average of precision values at each relevant item
+- Single-number summary of precision across all ranks
+- Higher = better, Range: 0.0-1.0
+
+⚡ MRR (Mean Reciprocal Rank)  
+- Average of reciprocal ranks of first relevant items
+- MRR = 1/rank_of_first_relevant_item
+- Emphasizes finding relevant items quickly
+- Higher = better, Range: 0.0-1.0
+
+🕒 EXECUTION TIME
+- Time taken to execute search
+- Lower = better (faster search)
+- Measured in milliseconds
+
+🎖️ INTERPRETATION GUIDE:
+- NDCG@5 > 0.8: Excellent ranking quality
+- NDCG@5 > 0.6: Good ranking quality  
+- NDCG@5 > 0.4: Fair ranking quality
+- NDCG@5 < 0.4: Poor ranking quality
+
+- MAP > 0.7: Excellent precision
+- MAP > 0.5: Good precision
+- MAP > 0.3: Fair precision
+- MAP < 0.3: Poor precision

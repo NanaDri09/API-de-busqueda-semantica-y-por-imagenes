@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-multipart
+slowapi
+redis
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Core dependencies (from main requirements.txt)
+openai
+langchain
+langchain-community
+faiss-cpu
+pydantic
+python-dotenv
+numpy
+rank-bm25

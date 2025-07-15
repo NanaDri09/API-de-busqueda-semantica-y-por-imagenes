@@ -1,93 +1,253 @@
-# Semantic Search
+# Semantic Search Core Module
 
+A modular semantic search system combining BM25 keyword matching and vector embeddings for e-commerce product search.
 
+## Features
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.ingeniuscuba.com/semantic-search/semantic-search.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://gitlab.ingeniuscuba.com/semantic-search/semantic-search/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- **Hybrid Search**: Combines BM25 (keyword) and vector (semantic) search for optimal results
+- **CRUD Operations**: Create, read, update, and delete products with automatic index management
+- **Configurable Weights**: Adjust the balance between keyword and semantic search
+- **Persistent Storage**: FAISS vector store with automatic saving/loading
+- **Batch Operations**: Efficient bulk product creation and indexing
+- **Multiple Search Types**: Hybrid, semantic-only, and keyword-only search modes
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+2. Set up environment variables:
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Quick Start
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```python
+from core import ProductService
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+# Initialize the service
+service = ProductService()
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+# Create products
+service.create_product(
+    id="1",
+    title="Wireless Bluetooth Headphones",
+    description="High-quality wireless headphones with noise cancellation"
+)
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+service.create_product(
+    id="2", 
+    title="Gaming Laptop",
+    description="High-performance laptop for gaming and productivity"
+)
+
+# Search products
+results = service.search_products("wireless audio", search_type="hybrid")
+print(f"Found products: {results}")
+
+# Get product details
+product = service.get_product_by_id("1")
+print(f"Product: {product.title}")
+```
+
+## Configuration
+
+Environment variables can be set to customize behavior:
+
+```bash
+# OpenAI Configuration
+export OPENAI_API_KEY="your-key"
+export OPENAI_MODEL="text-embedding-3-small"
+
+# Search Configuration
+export DEFAULT_TOP_K="10"
+export DEFAULT_BM25_WEIGHT="0.4"
+export DEFAULT_VECTOR_WEIGHT="0.6"
+
+# Storage Configuration
+export VECTOR_STORE_PATH="data/vector_store"
+```
+
+## API Reference
+
+### ProductService
+
+Main interface for all product operations.
+
+#### Methods
+
+**create_product(id: str, title: str, description: str) -> Product**
+- Creates a new product and adds it to both search indexes
+- Validates input and generates embeddings
+- Automatically saves indexes to disk
+
+**update_product(id: str, title: str = None, description: str = None) -> Product**
+- Updates an existing product
+- Re-generates embeddings for changed fields
+- Rebuilds indexes for optimal performance
+
+**delete_product(id: str) -> bool**
+- Removes product from both indexes
+- Returns True if successful
+
+**search_products(query: str, search_type: str = "hybrid", **kwargs) -> List[str]**
+- Searches products using specified method
+- `search_type`: "hybrid", "semantic", or "keyword"
+- `bm25_weight`, `vector_weight`: Custom weights for hybrid search
+- `top_k`: Number of results to return
+- Returns list of product IDs ranked by relevance
+
+**get_product_by_id(id: str) -> Optional[Product]**
+- Retrieves a product by its ID
+- Returns None if not found
+
+**list_all_products() -> List[Product]**
+- Returns all products in the system
+
+**batch_create_products(products_data: List[Dict]) -> List[Product]**
+- Creates multiple products efficiently
+- Better performance for large datasets
+
+### Search Types
+
+1. **Hybrid Search** (default)
+   - Combines BM25 and vector search
+   - Configurable weights (default: 40% BM25, 60% vector)
+   - Best overall performance
+
+2. **Semantic Search**
+   - Uses only vector embeddings
+   - Great for finding conceptually similar products
+   - Handles synonyms and related terms
+
+3. **Keyword Search**
+   - Uses only BM25 algorithm
+   - Excellent for exact phrase matching
+   - Fast and deterministic
+
+## Examples
+
+### Basic CRUD Operations
+
+```python
+from core import ProductService
+
+service = ProductService()
+
+# Create
+product = service.create_product(
+    id="laptop-001",
+    title="MacBook Pro 16-inch",
+    description="Professional laptop with M2 chip and 32GB RAM"
+)
+
+# Read
+found_product = service.get_product_by_id("laptop-001")
+all_products = service.list_all_products()
+
+# Update
+updated_product = service.update_product(
+    id="laptop-001",
+    description="Professional laptop with M2 chip, 32GB RAM, and 1TB SSD"
+)
+
+# Delete
+service.delete_product("laptop-001")
+```
+
+### Advanced Search
+
+```python
+# Hybrid search with custom weights
+results = service.search_products(
+    query="professional laptop",
+    search_type="hybrid",
+    bm25_weight=0.3,
+    vector_weight=0.7,
+    top_k=5
+)
+
+# Semantic search for conceptual similarity
+semantic_results = service.search_products(
+    query="portable computer for work",
+    search_type="semantic"
+)
+
+# Keyword search for exact matches
+keyword_results = service.search_products(
+    query="MacBook Pro",
+    search_type="keyword"
+)
+```
+
+### Batch Operations
+
+```python
+# Create multiple products efficiently
+products_data = [
+    {
+        "id": "phone-001",
+        "title": "iPhone 15 Pro",
+        "description": "Latest iPhone with advanced camera system"
+    },
+    {
+        "id": "phone-002", 
+        "title": "Samsung Galaxy S24",
+        "description": "Android flagship with AI features"
+    }
+]
+
+products = service.batch_create_products(products_data)
+```
+
+### System Statistics
+
+```python
+# Get system information
+stats = service.get_search_statistics()
+print(f"Total products: {stats['total_products']}")
+print(f"Vector index size: {stats['vector_index_size']}")
+print(f"BM25 index size: {stats['bm25_index_size']}")
+```
+
+## Architecture
+
+The system is organized into several layers:
+
+- **Models**: Data structures and validation (`Product`, `ProductDocument`)
+- **Repositories**: Data access layer (`VectorRepository`, `BM25Repository`)
+- **Services**: Business logic (`ProductService`, `SearchService`, `EmbeddingService`)
+- **Config**: Configuration management (`Settings`)
+
+## Performance Considerations
+
+- **Batch Operations**: Use `batch_create_products()` for large datasets
+- **Index Persistence**: Vector indexes are automatically saved/loaded
+- **Memory Usage**: FAISS indexes are memory-efficient
+- **API Limits**: Embedding generation respects OpenAI rate limits
+
+## Error Handling
+
+The system includes comprehensive error handling:
+
+- Input validation using Pydantic
+- OpenAI API retry logic with exponential backoff
+- Graceful handling of missing products
+- Detailed logging for debugging
+
+## Future Enhancements
+
+This core module is designed to be easily extended with:
+
+- FastAPI REST endpoints
+- Additional vector databases (Pinecone, Weaviate)
+- Custom embedding models
+- Advanced search filters
+- Real-time updates via webhooks
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+MIT License - see LICENSE file for details. 

@@ -1,0 +1,211 @@
+SEMANTIC SEARCH EVALUATION RESULTS
+==================================================
+Timestamp: 2025-07-13T23:14:45.126054
+Dataset: Spanish Tech Products (69 items)
+Queries: 20 test queries
+Methods: 7 search methods
+
+
+📊 COMPREHENSIVE EVALUATION RESULTS
+================================================================================
+
+Method          P@1    P@3    P@5    NDCG@5   MAP     MRR     Time(ms)  
+--------------------------------------------------------------------------------
+semantic        0.000  0.000  0.000  0.000    0.000   0.000   0.0
+keyword         0.000  0.000  0.000  0.000    0.000   0.000   0.0
+hybrid          0.000  0.000  0.000  0.000    0.000   0.000   0.0
+rrf             0.000  0.000  0.000  0.000    0.000   0.000   0.0
+balanced        0.000  0.000  0.000  0.000    0.000   0.000   0.0
+speed_first     0.000  0.000  0.000  0.000    0.000   0.000   0.0
+quality_first   0.000  0.000  0.000  0.000    0.000   0.000   0.0
+
+🏆 BEST METHOD DETAILED METRICS
+Method: semantic
+Queries evaluated: 20
+
+Precision Metrics:
+  P@1:  0.0000
+  P@3:  0.0000
+  P@5:  0.0000
+  P@10: 0.0000
+
+Recall Metrics:
+  R@1:  0.0000
+  R@3:  0.0000
+  R@5:  0.0000
+  R@10: 0.0000
+
+NDCG Metrics:
+  NDCG@1:  0.0000
+  NDCG@3:  0.0000
+  NDCG@5:  0.0000
+  NDCG@10: 0.0000
+
+Overall Quality:
+  MAP (Mean Average Precision): 0.0000
+  MRR (Mean Reciprocal Rank):   0.0000
+
+Performance:
+  Mean execution time:   0.0ms
+  Median execution time: 0.0ms
+
+
+DETAILED METRICS BY METHOD
+==================================================
+
+SEMANTIC
+--------------------
+Precision@1:  0.0000
+Precision@3:  0.0000
+Precision@5:  0.0000
+Precision@10: 0.0000
+NDCG@1:       0.0000
+NDCG@3:       0.0000
+NDCG@5:       0.0000
+NDCG@10:      0.0000
+MAP:          0.0000
+MRR:          0.0000
+Avg Time:     0.0ms
+Median Time:  0.0ms
+
+KEYWORD
+--------------------
+Precision@1:  0.0000
+Precision@3:  0.0000
+Precision@5:  0.0000
+Precision@10: 0.0000
+NDCG@1:       0.0000
+NDCG@3:       0.0000
+NDCG@5:       0.0000
+NDCG@10:      0.0000
+MAP:          0.0000
+MRR:          0.0000
+Avg Time:     0.0ms
+Median Time:  0.0ms
+
+HYBRID
+--------------------
+Precision@1:  0.0000
+Precision@3:  0.0000
+Precision@5:  0.0000
+Precision@10: 0.0000
+NDCG@1:       0.0000
+NDCG@3:       0.0000
+NDCG@5:       0.0000
+NDCG@10:      0.0000
+MAP:          0.0000
+MRR:          0.0000
+Avg Time:     0.0ms
+Median Time:  0.0ms
+
+RRF
+--------------------
+Precision@1:  0.0000
+Precision@3:  0.0000
+Precision@5:  0.0000
+Precision@10: 0.0000
+NDCG@1:       0.0000
+NDCG@3:       0.0000
+NDCG@5:       0.0000
+NDCG@10:      0.0000
+MAP:          0.0000
+MRR:          0.0000
+Avg Time:     0.0ms
+Median Time:  0.0ms
+
+BALANCED
+--------------------
+Precision@1:  0.0000
+Precision@3:  0.0000
+Precision@5:  0.0000
+Precision@10: 0.0000
+NDCG@1:       0.0000
+NDCG@3:       0.0000
+NDCG@5:       0.0000
+NDCG@10:      0.0000
+MAP:          0.0000
+MRR:          0.0000
+Avg Time:     0.0ms
+Median Time:  0.0ms
+
+SPEED_FIRST
+--------------------
+Precision@1:  0.0000
+Precision@3:  0.0000
+Precision@5:  0.0000
+Precision@10: 0.0000
+NDCG@1:       0.0000
+NDCG@3:       0.0000
+NDCG@5:       0.0000
+NDCG@10:      0.0000
+MAP:          0.0000
+MRR:          0.0000
+Avg Time:     0.0ms
+Median Time:  0.0ms
+
+QUALITY_FIRST
+--------------------
+Precision@1:  0.0000
+Precision@3:  0.0000
+Precision@5:  0.0000
+Precision@10: 0.0000
+NDCG@1:       0.0000
+NDCG@3:       0.0000
+NDCG@5:       0.0000
+NDCG@10:      0.0000
+MAP:          0.0000
+MRR:          0.0000
+Avg Time:     0.0ms
+Median Time:  0.0ms
+
+
+
+📚 METRICS EXPLANATION
+
+🎯 PRECISION@K
+- Measures accuracy of top K results
+- P@5 = (relevant items in top 5) / 5
+- Higher = better, Range: 0.0-1.0
+
+📈 RECALL@K  
+- Measures coverage of relevant items in top K
+- R@5 = (relevant items in top 5) / (total relevant items)
+- Higher = better, Range: 0.0-1.0
+
+⚖️ F1@K
+- Harmonic mean of Precision@K and Recall@K
+- Balances precision and recall
+- Higher = better, Range: 0.0-1.0
+
+🏆 NDCG@K (Normalized Discounted Cumulative Gain)
+- Considers ranking quality with position-based discounting
+- Higher-ranked relevant items contribute more to the score
+- Most important metric for ranking quality
+- Higher = better, Range: 0.0-1.0
+
+📊 MAP (Mean Average Precision)
+- Average of precision values at each relevant item
+- Single-number summary of precision across all ranks
+- Higher = better, Range: 0.0-1.0
+
+⚡ MRR (Mean Reciprocal Rank)  
+- Average of reciprocal ranks of first relevant items
+- MRR = 1/rank_of_first_relevant_item
+- Emphasizes finding relevant items quickly
+- Higher = better, Range: 0.0-1.0
+
+🕒 EXECUTION TIME
+- Time taken to execute search
+- Lower = better (faster search)
+- Measured in milliseconds
+
+🎖️ INTERPRETATION GUIDE:
+- NDCG@5 > 0.8: Excellent ranking quality
+- NDCG@5 > 0.6: Good ranking quality  
+- NDCG@5 > 0.4: Fair ranking quality
+- NDCG@5 < 0.4: Poor ranking quality
+
+- MAP > 0.7: Excellent precision
+- MAP > 0.5: Good precision
+- MAP > 0.3: Fair precision
+- MAP < 0.3: Poor precision
