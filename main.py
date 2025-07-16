@@ -115,7 +115,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             },
             #timestamp=datetime.now(timezone.utc),
             request_id=getattr(request.state, 'request_id', None)
-        ).model_dump()
+        ).model_dump(mode='json')
     )
 
 
@@ -131,7 +131,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             message=exc.detail,
             #timestamp=datetime.now(timezone.utc),
             request_id=getattr(request.state, 'request_id', None)
-        ).model_dump()
+        ).model_dump(mode='json')
     )
 
 
@@ -147,7 +147,7 @@ async def general_exception_handler(request: Request, exc: Exception):
             message="An unexpected error occurred",
             #timestamp=datetime.now(timezone.utc),
             request_id=getattr(request.state, 'request_id', None)
-        ).model_dump()
+        ).model_dump(mode='json')
     )
 
 
@@ -180,7 +180,7 @@ async def health():
     """Basic health check."""
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "service": "semantic-search-api"
     }
 

@@ -15,7 +15,7 @@ from ..models.responses import (
     StrategySearchResponse
 )
 from ..dependencies import get_product_service, get_request_id, get_service_uptime, check_service_health, verify_api_key
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -36,8 +36,8 @@ def product_to_response(product) -> ProductResponse:
         id=product.id,
         title=product.title,
         description=product.description,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
     )
 
 
@@ -246,7 +246,7 @@ async def health_check(request: Request):
             status=status_value,
             version="1.0.0",
             uptime_seconds=get_service_uptime(),
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             dependencies=dependencies
         )
         
@@ -256,7 +256,7 @@ async def health_check(request: Request):
             status="unhealthy",
             version="1.0.0",
             uptime_seconds=get_service_uptime(),
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             dependencies={"error": str(e)}
         )
 
@@ -284,7 +284,7 @@ async def rebuild_indexes(
         
         return MessageResponse(
             message=f"Search indexes rebuilt successfully in {execution_time:.2f} seconds",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
     except Exception as e:
@@ -316,7 +316,7 @@ async def clear_all_data(
         
         return MessageResponse(
             message="All data cleared successfully",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
     except Exception as e:
@@ -469,7 +469,7 @@ async def get_available_strategies(
         return {
             "strategies": strategies,
             "total_strategies": len(strategies),
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
         
     except Exception as e:

@@ -21,7 +21,7 @@ from ..models.responses import (
     ErrorResponse
 )
 from ..dependencies import get_product_service, get_request_id, verify_api_key
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -186,7 +186,7 @@ async def delete_product(
         logger.info(f"Successfully deleted product {product_id} [Request: {request_id}]")
         return MessageResponse(
             message=f"Product '{product_id}' deleted successfully",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
     except ValueError as e:
