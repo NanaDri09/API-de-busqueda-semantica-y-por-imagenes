@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).parent))
@@ -113,7 +113,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 "errors": exc.errors(),
                 "body": exc.body
             },
-            timestamp=datetime.utcnow(),
+            #timestamp=datetime.now(timezone.utc),
             request_id=getattr(request.state, 'request_id', None)
         ).model_dump()
     )
@@ -129,7 +129,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         content=ErrorResponse(
             error=f"HTTP{exc.status_code}",
             message=exc.detail,
-            timestamp=datetime.utcnow(),
+            #timestamp=datetime.now(timezone.utc),
             request_id=getattr(request.state, 'request_id', None)
         ).model_dump()
     )
@@ -145,7 +145,7 @@ async def general_exception_handler(request: Request, exc: Exception):
         content=ErrorResponse(
             error="InternalServerError",
             message="An unexpected error occurred",
-            timestamp=datetime.utcnow(),
+            #timestamp=datetime.now(timezone.utc),
             request_id=getattr(request.state, 'request_id', None)
         ).model_dump()
     )
@@ -180,7 +180,7 @@ async def health():
     """Basic health check."""
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow(),
+        "timestamp": datetime.now(timezone.utc),
         "service": "semantic-search-api"
     }
 

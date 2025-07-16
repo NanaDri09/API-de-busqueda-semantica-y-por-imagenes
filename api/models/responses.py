@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
-from datetime import datetime
 from .requests import SearchType, SearchStrategy
+from datetime import datetime, timezone
 
 
 class ProductResponse(BaseModel):
@@ -9,8 +9,8 @@ class ProductResponse(BaseModel):
     id: str = Field(..., description="Product identifier")
     title: str = Field(..., description="Product title")
     description: str = Field(..., description="Product description")
-    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc), description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last update timestamp")
     
     class Config:
         json_schema_extra = {
@@ -158,6 +158,7 @@ class BatchResponse(BaseModel):
     success_count: int = Field(..., description="Number of successful operations")
     failure_count: int = Field(..., description="Number of failed operations")
     execution_time_ms: float = Field(..., description="Total execution time in milliseconds")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of the batch operation")
     
     class Config:
         json_schema_extra = {
@@ -169,7 +170,8 @@ class BatchResponse(BaseModel):
                 "total_processed": 3,
                 "success_count": 2,
                 "failure_count": 1,
-                "execution_time_ms": 150.5
+                "execution_time_ms": 150.5,
+                "timestamp": "2024-07-14T12:00:00Z"
             }
         }
 
@@ -179,7 +181,7 @@ class ErrorResponse(BaseModel):
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")
     details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
-    timestamp: datetime = Field(..., description="Error timestamp")
+    timestamp: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
     request_id: Optional[str] = Field(None, description="Request identifier for tracking")
     
     class Config:

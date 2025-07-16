@@ -21,7 +21,7 @@ class SearchStrategy(str, Enum):
 
 class ProductCreateRequest(BaseModel):
     """Request model for creating a new product."""
-    id: str = Field(..., min_length=1, max_length=100, description="Unique product identifier")
+    id: str = Field(..., min_length=1, max_length=500, description="Unique product identifier")
     title: str = Field(..., min_length=1, max_length=500, description="Product title")
     description: str = Field(..., min_length=1, max_length=5000, description="Product description")
     

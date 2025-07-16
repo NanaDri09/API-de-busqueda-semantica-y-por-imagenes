@@ -43,9 +43,7 @@ def product_to_response(product: Product) -> ProductResponse:
     return ProductResponse(
         id=product.id,
         title=product.title,
-        description=product.description,
-        created_at=datetime.utcnow(),  # In real app, this would come from database
-        updated_at=datetime.utcnow()
+        description=product.description
     )
 
 
@@ -294,12 +292,12 @@ async def batch_create_products(
             
             for product_req in batch_request.products:
                 try:
-                    service.create_product(
+                    created_product = service.create_product(
                         id=product_req.id,
                         title=product_req.title,
                         description=product_req.description
                     )
-                    successful.append(product_req.id)
+                    successful.append(created_product.id)
                 except Exception as individual_error:
                     failed.append({
                         "id": product_req.id,
@@ -343,7 +341,7 @@ async def batch_delete_products(
     
     logger.info(f"Batch deleting {len(batch_request.product_ids)} products [Request: {request_id}]")
     
-    successful = []
+    successful_ids = []
     failed = []
     
     try:
@@ -351,7 +349,7 @@ async def batch_delete_products(
             try:
                 success = service.delete_product(product_id)
                 if success:
-                    successful.append(product_id)
+                    successful_ids.append(product_id)
                 else:
                     failed.append({
                         "id": product_id,
@@ -365,13 +363,13 @@ async def batch_delete_products(
         
         execution_time = (time.time() - start_time) * 1000
         
-        logger.info(f"Batch deletion completed: {len(successful)} successful, {len(failed)} failed [Request: {request_id}]")
+        logger.info(f"Batch deletion completed: {len(successful_ids)} successful, {len(failed)} failed [Request: {request_id}]")
         
         return BatchResponse(
-            successful=successful,
+            successful=successful_ids,
             failed=failed,
             total_processed=len(batch_request.product_ids),
-            success_count=len(successful),
+            success_count=len(successful_ids),
             failure_count=len(failed),
             execution_time_ms=execution_time
         )
