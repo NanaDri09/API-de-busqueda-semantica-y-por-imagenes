@@ -1,5 +1,6 @@
 from typing import List, Optional, Literal
-from pydantic import BaseModel, Field, validator
+import base64
+from pydantic import BaseModel, Field, validator, root_validator
 from enum import Enum
 
 
@@ -9,6 +10,10 @@ class SearchType(str, Enum):
     SEMANTIC = "semantic"
     KEYWORD = "keyword"
     RRF = "rrf"
+    IMAGE = "image"
+    CAPTION = "caption"
+    IMAGE_DESCRIPTION = "image_description"
+    HYBRID_IMAGE = "hibrid_image"
 
 
 class SearchStrategy(str, Enum):
@@ -24,6 +29,7 @@ class ProductCreateRequest(BaseModel):
     id: str = Field(..., min_length=1, max_length=500, description="Unique product identifier")
     title: str = Field(..., min_length=1, max_length=500, description="Product title")
     description: str = Field(..., min_length=1, max_length=5000, description="Product description")
+
     
     @validator('id', 'title', 'description')
     def validate_not_empty_or_whitespace(cls, v):
@@ -48,6 +54,23 @@ class ProductCreateRequest(BaseModel):
             }
         }
 
+    # Optional image for JSON requests (use multipart/form-data for file uploads)
+    image_base64: Optional[str] = Field(None, description="Optional image encoded as base64 or data URI")
+    image_filename_hint: Optional[str] = Field(None, max_length=300, description="Optional filename hint (e.g. 'photo.jpg')")
+
+    @validator('image_base64')
+    def validate_image_base64(cls, v):
+        if v is None:
+            return v
+        try:
+            # accept data URI by stripping prefix
+            if v.startswith('data:'):
+                v = v.split(',', 1)[1]
+            base64.b64decode(v, validate=True)
+        except Exception:
+            raise ValueError('image_base64 must be valid base64 or data URI')
+        return v
+
 
 class ProductUpdateRequest(BaseModel):
     """Request model for updating an existing product."""
@@ -67,6 +90,23 @@ class ProductUpdateRequest(BaseModel):
                 "description": "Latest professional laptop with M3 chip, 32GB RAM, and 1TB SSD. Perfect for developers and creative professionals."
             }
         }
+
+    # Optional image fields for updates
+    image_base64: Optional[str] = Field(None, description="Optional image encoded as base64 or data URI")
+    image_filename_hint: Optional[str] = Field(None, max_length=300, description="Optional filename hint (e.g. 'photo.jpg')")
+
+    @validator('image_base64')
+    def validate_image_base64_update(cls, v):
+        if v is None:
+            return v
+        try:
+            if v.startswith('data:'):
+                v = v.split(',', 1)[1]
+            base64.b64decode(v, validate=True)
+        except Exception:
+            raise ValueError('image_base64 must be valid base64 or data URI')
+        return v
+
 
 
 class SearchRequest(BaseModel):
@@ -195,3 +235,51 @@ class PaginationRequest(BaseModel):
                 "size": 20
             }
         } 
+
+
+class ImageSearchRequest(BaseModel):
+    """Request model for searches driven by an image (image-only queries)."""
+    image_base64: str = Field(..., description="Image data encoded as base64 or data URI")
+    top_k: int = Field(10, ge=1, le=100, description="Number of results to return")
+    include_product_details: bool = Field(False, description="Include full product details in results")
+
+
+    @validator('image_base64')
+    def validate_image_base64(cls, v):
+        if not v or not v.strip():
+            raise ValueError('image_base64 cannot be empty')
+        try:
+            if v.startswith('data:'):
+                v = v.split(',', 1)[1]
+            base64.b64decode(v, validate=True)
+        except Exception:
+            raise ValueError('image_base64 must be valid base64 or data URI')
+        return v
+
+
+class HybridImageTextRequest(BaseModel):
+    """Request model for hybrid searches that accept both text and image inputs."""
+    query: Optional[str] = Field(None, min_length=1, max_length=1000, description="Optional text query")
+    image_base64: Optional[str] = Field(None, description="Optional image data encoded as base64 or data URI")
+    top_k: int = Field(10, ge=1, le=100, description="Number of results to return")
+    caption_weight: Optional[float] = Field(None, ge=0.0, le=1.0, description="Weight for BM25/text results")
+    image_weight: Optional[float] = Field(None, ge=0.0, le=1.0, description="Weight for image-based scores")
+    description_weight: Optional[float] = Field(None, ge=0.0, le=1.0, description="Weight for BM25/text results")
+    include_product_details: bool = Field(False, description="Include full product details in results")
+
+    @root_validator(skip_on_failure=True)
+    def validate_at_least_one_input(cls, values):
+        q = values.get('query')
+        img = values.get('image_base64')
+        if not q and not img:
+            raise ValueError('At least one of `query` or `image_base64` must be provided')
+        if img:
+            try:
+                v = img
+                if v.startswith('data:'):
+                    v = v.split(',', 1)[1]
+                base64.b64decode(v, validate=True)
+            except Exception:
+                raise ValueError('image_base64 must be valid base64 or data URI')
+        return values
+        

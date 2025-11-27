@@ -1,11 +1,16 @@
 import time
 import math
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, File, UploadFile, Form
 from fastapi.responses import JSONResponse
 
 from core.services.product_service import ProductService
 from core.models.product import Product
+import base64
+import io
+from PIL import Image, UnidentifiedImageError
+from data.productos_del_json_copy import PRODUCTS_JSON
+
 from ..models.requests import (
     ProductCreateRequest, 
     ProductUpdateRequest, 
@@ -14,11 +19,12 @@ from ..models.requests import (
     PaginationRequest
 )
 from ..models.responses import (
-    ProductResponse, 
-    ProductListResponse, 
-    BatchResponse, 
+    ProductResponseImage,
+    ProductListResponse,
+    BatchResponse,
     MessageResponse,
-    ErrorResponse
+    ErrorResponse, 
+    ProductResponse
 )
 from ..dependencies import get_product_service, get_request_id, verify_api_key
 from datetime import datetime, timezone
@@ -38,55 +44,173 @@ router = APIRouter(
 )
 
 
-def product_to_response(product: Product) -> ProductResponse:
-    """Convert Product model to ProductResponse."""
-    return ProductResponse(
+def product_to_response(product: Product) -> ProductResponseImage:
+    """Convert Product model to ProductResponseImage (includes image_url)."""
+    return ProductResponseImage(
         id=product.id,
         title=product.title,
-        description=product.description
+        description=product.description,
+        image_url=product.image_url
     )
+
+import os
+from pathlib import Path
+
+@router.post("/load-from-json",
+    response_model=BatchResponse,
+    status_code=status.HTTP_201_CREATED)
+async def load_products_from_json(
+    request: Request,
+    service: ProductService = Depends(get_product_service),
+    api_key: Optional[str] = Depends(verify_api_key)
+):
+    request_id = get_request_id(request)
+    start_time = time.time()
+    
+    successful = []
+    failed = []
+    
+    try:
+        for product_data in PRODUCTS_JSON:
+            try:
+                product_id = str(product_data.get('id'))
+                title = product_data.get('title')
+                description = product_data.get('description')
+                image_path = product_data.get('image_url')
+                caption = product_data.get('caption')
+                
+                if not all([product_id, title, description, image_path]):
+                    failed.append({
+                        "id": product_id or "unknown",
+                        "error": "Missing required fields"
+                    })
+                    continue
+                
+                if not os.path.exists(image_path):
+                    failed.append({
+                        "id": product_id,
+                        "error": f"Image file not found: {image_path}"
+                    })
+                    continue
+                
+                # Crear el producto directamente
+                product = Product(
+                    id=product_id,
+                    title=title,
+                    description=description,
+                    image_url=image_path
+                )
+                
+                # Agregar a todos los repositorios manualmente
+                service.vector_repo.add_product(product)
+                service.bm25_repo.add_product(product)
+                service.image_repo.add_image(product)
+                service.caption_repo.add_caption(product, caption)
+                
+                successful.append(product.id)
+                logger.debug(f"Successfully created product {product_id} [Request: {request_id}]")
+                
+            except Exception as e:
+                failed.append({
+                    "id": product_data.get('id', 'unknown'),
+                    "error": f"Creation failed: {str(e)}"
+                })
+        
+        # Guardar todos los índices al final
+        service.vector_repo.save_index()
+        service.caption_repo.save_index()
+        service.image_repo.save_index()
+        
+        execution_time = (time.time() - start_time) * 1000
+        
+        return BatchResponse(
+            successful=successful,
+            failed=failed,
+            total_processed=len(PRODUCTS_JSON),
+            success_count=len(successful),
+            failure_count=len(failed),
+            execution_time_ms=execution_time
+        )
+        
+    except Exception as e:
+        logger.error(f"Unexpected error: {e} [Request: {request_id}]")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 
 @router.post("/", 
     response_model=ProductResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new product",
-    description="Create a new product with title and description. The product will be automatically indexed for search.")
+    summary="Create a new product (multipart/form-data)",
+    description="Create a new product with id, title, description and an image (multipart/form-data).")
 async def create_product(
-    product_request: ProductCreateRequest,
     request: Request,
+    id: str = Form(..., min_length=1, max_length=500),
+    title: str = Form(..., min_length=1, max_length=500),
+    description: str = Form(..., min_length=1, max_length=5000),
+    file: UploadFile = File(...),  # obligamos imagen; si quieres opcional usa Optional[UploadFile]=File(None)
+    image_filename_hint: Optional[str] = Form(None, max_length=300),
     service: ProductService = Depends(get_product_service),
-    api_key: Optional[str] = Depends(verify_api_key)
+    api_key: Optional[str] = Depends(verify_api_key),
 ):
-    """Create a new product."""
+    """Create a product via multipart/form-data with form fields + file."""
     request_id = get_request_id(request)
-    
+    start_time = time.time()
+
     try:
-        logger.info(f"Creating product {product_request.id} [Request: {request_id}]")
-        
+        # Validar los campos con Pydantic (levanta ValidationError -> 422 si falla)
+        try:
+            # construimos el objeto Pydantic para aplicar tus validadores
+            product_request = ProductCreateRequest(
+                id=id,
+                title=title,
+                description=description,
+                image_base64=None,
+                image_filename_hint=image_filename_hint
+            )
+        except Exception as ve:
+            # Normalmente FastAPI transforma ValidationError a 422, aquí lo convertimos explícitamente
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
+
+        # Leer y validar la imagen subida
+        try:
+            file_bytes = await file.read()
+            image_obj = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+        except UnidentifiedImageError:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is not a valid image")
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Error reading uploaded file: {e}")
+        finally:
+            # opcional: devolver el cursor del UploadFile a inicio (por si alguien lo reutiliza)
+            try:
+                await file.seek(0)
+            except Exception:
+                pass
+
+        # Llamar al servicio para crear el producto
         product = service.create_product(
             id=product_request.id,
             title=product_request.title,
-            description=product_request.description
+            description=product_request.description,
+            image=image_obj
         )
-        
-        logger.info(f"Successfully created product {product.id} [Request: {request_id}]")
+
+        execution_time = (time.time() - start_time) * 1000
+        logger.info(f"Successfully created product {product.id} in {execution_time:.1f}ms [Request: {request_id}]")
         return product_to_response(product)
-        
-    except ValueError as e:
-        logger.warning(f"Product creation failed: {e} [Request: {request_id}]")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e)
-        )
+
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        # errores de negocio (ej. producto ya existe)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(ve))
     except Exception as e:
         logger.error(f"Unexpected error creating product: {e} [Request: {request_id}]")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error occurred")
 
-
+        
 @router.get("/{product_id}",
     response_model=ProductResponse,
     summary="Get product by ID",
@@ -117,48 +241,81 @@ async def get_product(
     summary="Update product",
     description="Update an existing product's title and/or description. The product will be re-indexed automatically.")
 async def update_product(
-    product_id: str,
-    product_request: ProductUpdateRequest,
     request: Request,
+    id: str = Form(..., min_length=1, max_length=500),
+    title: Optional[str] = Form(..., min_length=1, max_length=500),
+    description: Optional[str] = Form(..., min_length=1, max_length=5000),
+    file: Optional[UploadFile] = File(...),  
+    image_filename_hint: Optional[str] = Form(None, max_length=300),
     service: ProductService = Depends(get_product_service),
-    api_key: Optional[str] = Depends(verify_api_key)
+    api_key: Optional[str] = Depends(verify_api_key),
 ):
     """Update an existing product."""
     request_id = get_request_id(request)
     
     try:
-        logger.info(f"Updating product {product_id} [Request: {request_id}]")
-        
-        # Check if at least one field is provided
-        if product_request.title is None and product_request.description is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="At least one field (title or description) must be provided for update"
-            )
-        
-        product = service.update_product(
-            id=product_id,
-            title=product_request.title,
-            description=product_request.description
+        logger.info(f"Updating product {id} [Request: {request_id}]")
+        product = service.get_product_by_id(id)
+
+        if title is None:
+            title = product.title
+        if description is None:
+            description = product.description   
+
+        image_obj = None
+
+        if file is not None:
+            try:
+                file_bytes = await file.read()
+                image_obj = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+            except Exception as e:
+                logger.warning(f"Invalid uploaded file for product update {id}: {e} [Request: {request_id}]")
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is not a valid image")
+        else: # Si no hay archivo, intentar obtener la imagen desde product.image_url
+            url = product.image_url  # uso del nombre `url` según pediste
+            if url:
+                try:
+                    logger.info(f"No file uploaded; downloading image from URL for product {id}: {url} [Request: {request_id}]")
+                    resp = requests.get(url, timeout=10)
+                    resp.raise_for_status()
+                    image_bytes = resp.content
+                    image_obj = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                except requests.exceptions.RequestException as re:
+                    logger.warning(f"Failed to download image from URL for product {id}: {re} [Request: {request_id}]")
+                    image_obj = None  # permitimos continuar sin imagen
+                except Exception as e:
+                    logger.warning(f"Invalid image data from product.image_url for product {id}: {e} [Request: {request_id}]")
+                    image_obj = None
+            else:
+                logger.info(f"No file uploaded and no product.image_url present for product {id} [Request: {request_id}]")
+                image_obj = None
+
+        # Llamar al servicio de actualización del producto.
+        # Ajusta los nombres de argumentos si tu service.update_product usa otros.
+        updated_product = service.update_product(
+            id=id,
+            title=title,
+            description=description,
+            image=image_obj
         )
-        
-        logger.info(f"Successfully updated product {product_id} [Request: {request_id}]")
-        return product_to_response(product)
-        
+
+        logger.info(f"Successfully updated product {id} [Request: {request_id}]")
+        return product_to_response(updated_product)
+
     except ValueError as e:
         logger.warning(f"Product update failed: {e} [Request: {request_id}]")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Unexpected error updating product: {e} [Request: {request_id}]")
+        logger.error(f"Unexpected error updating product: {e} [Request: {request_id}]", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error occurred"
         )
-
-
 @router.delete("/{product_id}",
     response_model=MessageResponse,
     summary="Delete product",

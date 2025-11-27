@@ -24,6 +24,7 @@ class ProductResponse(BaseModel):
         }
 
 
+
 class ProductListResponse(BaseModel):
     """Response model for paginated product list."""
     products: List[ProductResponse] = Field(..., description="List of products")
@@ -133,6 +134,8 @@ class StatsResponse(BaseModel):
     total_products: int = Field(..., description="Total number of products")
     vector_index_size: int = Field(..., description="Number of items in vector index")
     bm25_index_size: int = Field(..., description="Number of items in BM25 index")
+    image_index_size: int = Field(..., description="Number of items in image index")
+    caption_index_size: int = Field(..., description="Number of items in caption index")
     vector_dimension: int = Field(..., description="Vector embedding dimension")
     default_weights: Dict[str, float] = Field(..., description="Default search weights")
     default_top_k: int = Field(..., description="Default number of results")
@@ -143,12 +146,13 @@ class StatsResponse(BaseModel):
                 "total_products": 1250,
                 "vector_index_size": 1250,
                 "bm25_index_size": 1250,
+                "image_index_size": 800,      # ← Nuevo
+                "caption_index_size": 750,    # ← Nuevo
                 "vector_dimension": 1536,
                 "default_weights": {"bm25": 0.4, "vector": 0.6},
                 "default_top_k": 10
             }
         }
-
 
 class BatchResponse(BaseModel):
     """Response model for batch operations."""
@@ -262,3 +266,86 @@ class StrategySearchResponse(BaseModel):
                 "stages_executed": 2
             }
         } 
+
+
+class ProductResponseImage(ProductResponse):
+    """Product response including the image URL."""
+    image_url: Optional[str] = Field(None, description="URL or relative path to the product image")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "laptop-001",
+                "title": "MacBook Pro 16-inch",
+                "description": "Professional laptop with M2 chip, 32GB RAM, and 1TB SSD.",
+                "image_url": "Imagenes/macbook-001.jpg",
+                "created_at": "2024-01-15T10:30:00Z",
+                "updated_at": "2024-01-15T10:30:00Z"
+            }
+        }
+
+
+class SearchResultImage(BaseModel):
+    """Individual image search result."""
+    product_id: str = Field(..., description="Product identifier")
+    score: float = Field(..., description="Relevance score")
+    product: Optional[ProductResponseImage] = Field(None, description="Full product details (if requested)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "product_id": "laptop-001",
+                "score": 0.92,
+                "product": {
+                    "id": "laptop-001",
+                    "title": "MacBook Pro 16-inch",
+                    "description": "Professional laptop with M2 chip",
+                    "image_url": "Imagenes/macbook-001.jpg"
+                }
+            }
+        }
+
+
+class HybridSearchResultImage(BaseModel):
+    """Hybrid image search result with per-modality scores."""
+    product_id: str = Field(..., description="Product identifier")
+    image_score: float = Field(..., description="Similarity score from image index")
+    caption_score: float = Field(..., description="Similarity score from caption index")
+    description_score: float = Field(..., description="Similarity score from description/text index")
+    score: Optional[float] = Field(None, description="Combined score (if provided)")
+    product: Optional[ProductResponseImage] = Field(None, description="Full product details (if requested)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "product_id": "laptop-001",
+                "image_score": 0.88,
+                "caption_score": 0.65,
+                "description_score": 0.72,
+                "score": 0.75,
+                "product": {
+                    "id": "laptop-001",
+                    "title": "MacBook Pro 16-inch",
+                    "description": "Professional laptop",
+                    "image_url": "Imagenes/macbook-001.jpg"
+                }
+            }
+        }
+
+
+class ImageSearchResponse(BaseModel):
+    """Search response specifically for image-only searches."""
+    results: List[SearchResultImage] = Field(..., description="Image search results")
+    query: Optional[str] = Field(None, description="Original query (if any)")
+    search_type: Optional[SearchType] = Field(None, description="Type of search performed")
+    total_results: int = Field(..., description="Number of results returned")
+    execution_time_ms: float = Field(..., description="Search execution time in milliseconds")
+
+
+class HybridImageSearchResponse(BaseModel):
+    """Search response for hybrid image searches that return per-modality scores."""
+    results: List[HybridSearchResultImage] = Field(..., description="Hybrid image search results with modality scores")
+    query: Optional[str] = Field(None, description="Original query (if any)")
+    search_type: Optional[SearchType] = Field(None, description="Type of search performed")
+    total_results: int = Field(..., description="Number of results returned")
+    execution_time_ms: float = Field(..., description="Search execution time in milliseconds")

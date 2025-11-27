@@ -24,6 +24,7 @@ class Settings:
     
     # Vector Store Configuration
     VECTOR_STORE_PATH: str = os.getenv("VECTOR_STORE_PATH", "data/vector_store")
+    VECTOR_STORE_PATH_IMG: str = os.getenv("VECTOR_STORE_PATH_IMG", "data/image_store")
     VECTOR_DIMENSION: int = int(os.getenv("VECTOR_DIMENSION", "1536"))  # OpenAI embedding dimension
     
     # Performance Configuration
@@ -45,6 +46,10 @@ class Settings:
     def create_vector_store_dir(cls) -> None:
         """Create vector store directory if it doesn't exist."""
         os.makedirs(cls.VECTOR_STORE_PATH, exist_ok=True)
+
+    def create_vector_store_dir_img(cls) -> None:
+        """Create vector store directory if it doesn't exist."""
+        os.makedirs(cls.VECTOR_STORE_PATH_IMG, exist_ok=True)
 
 
 # Global settings instance

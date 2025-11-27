@@ -7,6 +7,8 @@ Defines configuration structures for multi-stage search and search strategies.
 from typing import List, Optional, Dict, Any, Literal
 from dataclasses import dataclass
 from enum import Enum
+from PIL import Image
+import faiss
 
 
 class SearchMethod(str, Enum):

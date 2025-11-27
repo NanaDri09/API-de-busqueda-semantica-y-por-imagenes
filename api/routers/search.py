@@ -1,13 +1,20 @@
 import time
-from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+import base64
+import io
+from typing import List, Optional, Dict, Any, Tuple
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File, Body
 
 from core.services.product_service import ProductService
-from ..models.requests import SearchRequest, SearchType, StrategySearchRequest
+from ..models.requests import SearchRequest, SearchType, StrategySearchRequest, ImageSearchRequest, HybridImageTextRequest
 from ..models.responses import (
     SearchResponse, 
     SearchResult, 
     ProductResponse,
+    ProductResponseImage,
+    SearchResultImage,
+    HybridSearchResultImage,
+    ImageSearchResponse,
+    HybridImageSearchResponse,
     StatsResponse,
     HealthResponse,
     MessageResponse,
@@ -17,6 +24,8 @@ from ..models.responses import (
 from ..dependencies import get_product_service, get_request_id, get_service_uptime, check_service_health, verify_api_key
 from datetime import datetime, timezone
 import logging
+from PIL import Image
+from core.services.image_service import ImageService
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +196,352 @@ async def keyword_search(
     return await search_products(search_request, request, service)
 
 
+def _load_image_from_upload_or_base64(upload_file: Optional[UploadFile], image_base64: Optional[str]) -> Image.Image:
+    """Helper: return PIL Image from either UploadFile or base64 string."""
+    if upload_file is not None:
+        data = upload_file.file.read()
+        try:
+            return Image.open(io.BytesIO(data)).convert("RGB")
+        finally:
+            try:
+                upload_file.file.seek(0)
+            except Exception:
+                pass
+
+    if image_base64:
+        try:
+            # accept data URI style as well
+            if image_base64.startswith("data:"):
+                image_base64 = image_base64.split(",", 1)[1]
+            raw = base64.b64decode(image_base64)
+            return Image.open(io.BytesIO(raw)).convert("RGB")
+        except Exception as e:
+            raise ValueError(f"Invalid base64 image data: {e}")
+
+    raise ValueError("No image provided")
+
+
+@router.post("/image",
+    response_model=ImageSearchResponse,
+    summary="Image search",
+    description="Search using an input image against the visual index.")
+async def search_by_image_endpoint(
+    request: Request,
+    upload_file: Optional[UploadFile] = File(None),
+    image_base64: Optional[str] = Body(None),
+    top_k: int = 10,
+    include_product_details: bool = True,
+    service: ProductService = Depends(get_product_service)
+    ):
+
+    """Search using the visual image index."""
+    request_id = get_request_id(request)
+    start_time = time.time()
+
+    try:
+        img = _load_image_from_upload_or_base64(upload_file, image_base64)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    try:
+        results = service.search_service.search_by_image_A(img, k=top_k)
+
+        execution_time = (time.time() - start_time) * 1000
+
+        out_results: List[SearchResultImage] = []
+        for i, item in enumerate(results[:top_k]):
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                pid = str(item[0])
+                score = float(item[-1])
+            else:
+                pid = str(item)
+                score = 1.0 - (i * 0.1)
+
+            product_detail = None
+            if include_product_details:
+                p = service.get_product_by_id(pid)
+                if p:
+                    product_detail = ProductResponseImage(
+                        id=p.id, title=p.title, description=p.description, image_url= p.image_url
+                    )
+
+            sr = SearchResultImage(product_id=pid, score=score, product=product_detail)
+            out_results.append(sr)
+
+        return ImageSearchResponse(
+            results=out_results,
+            query= "image",
+            search_type= SearchType.IMAGE,
+            total_results=len(out_results),
+            execution_time_ms=execution_time
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] Image search failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Image search failed")
+
+
+@router.post("/image/caption",
+    response_model=ImageSearchResponse,
+    summary="Caption search from image",
+    description="Generate a caption for the input image and search the caption/caption-index.")
+async def search_by_caption_endpoint(
+    request: Request,
+    upload_file: Optional[UploadFile] = File(None),
+    image_base64: Optional[str] = Body(None),
+    top_k: int = 10,
+    include_product_details: bool = True,
+    service: ProductService = Depends(get_product_service)
+    ):
+
+    request_id = get_request_id(request)
+    start_time = time.time()
+
+
+    try:
+        img = _load_image_from_upload_or_base64(upload_file, image_base64)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    try:
+        results = service.search_service.search_by_caption_A(img, k=top_k)
+
+        execution_time = (time.time() - start_time) * 1000
+        out_results: List[SearchResultImage] = []
+        for i, item in enumerate(results[:top_k]):
+            pid = str(item[0]) if isinstance(item, (list, tuple)) else str(item)
+            score = float(item[1]) if isinstance(item, (list, tuple)) and len(item) > 1 else 1.0
+
+            product_detail = None
+            if include_product_details:
+                p = service.get_product_by_id(pid)
+                if p:
+                    product_detail = ProductResponseImage(
+                        id=p.id, title=p.title, description=p.description, image_url=p.image_url
+                    )
+
+            sr = SearchResultImage(product_id=pid, score=score, product=product_detail)
+            out_results.append(sr)
+
+        return ImageSearchResponse(
+            results=out_results,
+            query="image",
+            search_type=SearchType.CAPTION,
+            total_results=len(out_results),
+            execution_time_ms=execution_time
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] Caption search failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Caption search failed")
+
+
+@router.post("/image/description",
+    response_model=ImageSearchResponse,
+    summary="Description-based search from image",
+    description="Generate a description from the image and search the text/descriptions index.")
+async def search_by_description_endpoint(
+    request: Request,
+    upload_file: Optional[UploadFile] = File(None),
+    image_base64: Optional[str] = Body(None),
+    top_k: int = 10,
+    include_product_details: bool = True,
+    service: ProductService = Depends(get_product_service)
+    ):
+    request_id = get_request_id(request)
+    start_time = time.time()
+
+
+    try:
+        img = _load_image_from_upload_or_base64(upload_file, image_base64)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    try:
+        results = service.search_service.search_by_description_A(img, k=top_k)
+
+        execution_time = (time.time() - start_time) * 1000
+        out_results: List[SearchResultImage] = []
+        for i, item in enumerate(results[:top_k]):
+            pid = str(item[0]) if isinstance(item, (list, tuple)) else str(item)
+            score = float(item[1]) if isinstance(item, (list, tuple)) and len(item) > 1 else 1.0
+
+            product_detail = None
+            if include_product_details:
+                p = service.get_product_by_id(pid)
+                if p:
+                    product_detail = ProductResponseImage(
+                        id=p.id, title=p.title, description=p.description, image_url=p.image_url
+                    )
+
+            sr = SearchResultImage(product_id=pid, score=score, product=product_detail)
+            out_results.append(sr)
+
+        return ImageSearchResponse(
+            results=out_results,
+            query="image",
+            search_type=SearchType.IMAGE_DESCRIPTION,
+            total_results=len(out_results),
+            execution_time_ms=execution_time
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] Description search failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Description search failed")
+
+
+@router.post("/image/hybrid",
+    response_model=HybridImageSearchResponse,
+    summary="Hybrid image search",
+    description="Perform a hybrid image-based search combining visual, caption and description scores.")
+async def hybrid_image_search_endpoint(
+    request: Request,
+    upload_file: Optional[UploadFile] = File(None),
+    image_base64: Optional[str] = Body(None),
+    top_k: int = 10,
+    peso_imagen: float = 0.4,
+    peso_caption: float = 0.2,
+    peso_description: float = 0.4,
+    umbral: float = 0.0,
+    include_product_details: bool = True,
+    service: ProductService = Depends(get_product_service)
+    ):
+
+    request_id = get_request_id(request)
+    start_time = time.time()
+
+
+    try:
+        img = _load_image_from_upload_or_base64(upload_file, image_base64)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    try:
+        results = service.search_service.hydrid_search_image_A(img, k=top_k, peso_imagen=peso_imagen, peso_caption=peso_caption, peso_description=peso_description, umbral=umbral)
+
+        execution_time = (time.time() - start_time) * 1000
+        out_results: List[HybridSearchResultImage] = []
+
+        for i, item in enumerate(results[:top_k]):
+            # item may be (pid, s_i, s_c, s_d, score)
+            if isinstance(item, (list, tuple)) and len(item) >= 4:
+                pid = str(item[0])
+                img_s = float(item[1])
+                cap_s = float(item[2])
+                des_s = float(item[3])
+                combined = float(item[4]) if len(item) > 4 else (img_s * peso_imagen + cap_s * peso_caption + des_s * peso_description)
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                pid = str(item[0])
+                combined = float(item[1])
+                img_s = cap_s = des_s = combined
+            else:
+                pid = str(item)
+                combined = 1.0 - (i * 0.1)
+                img_s = cap_s = des_s = combined
+
+            product_detail = None
+            if include_product_details:
+                p = service.get_product_by_id(pid)
+                if p:
+                    product_detail = ProductResponseImage(
+                        id=p.id, title=p.title, description=p.description, image_url=p.image_url
+                    )
+
+            sr = HybridSearchResultImage(
+                product_id=pid,
+                image_score=img_s,
+                caption_score=cap_s,
+                description_score=des_s,
+                score=combined,
+                product=product_detail
+            )
+            out_results.append(sr)
+
+        return HybridImageSearchResponse(
+            results=out_results,
+            query="image",
+            total_results=len(out_results),
+            execution_time_ms=execution_time
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] Hybrid image search failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Hybrid image search failed")
+
+
+@router.post("/image/hybrid_description",
+    response_model=HybridImageSearchResponse,
+    summary="Hybrid image+description search",
+    description="Combine image signals with a text query (description) to perform hybrid search.")
+async def hybrid_image_description_endpoint(
+    request: Request,
+    query: str,
+    upload_file: Optional[UploadFile] = File(None),
+    image_base64: Optional[str] = Body(None),
+    top_k: int = 10,
+    peso_imagen: float = 0.4,
+    peso_caption: float = 0.2,
+    peso_description: float = 0.4,
+    umbral: float = 0.0,
+    include_product_details: bool = False,
+    service: ProductService = Depends(get_product_service)
+    ):
+
+    request_id = get_request_id(request)
+    start_time = time.time()
+
+    try:
+        img = _load_image_from_upload_or_base64(upload_file, image_base64)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    try:
+        results = service.search_service.hybrid_search_image_description_A(img, query=query, k=top_k, peso_imagen=peso_imagen, peso_caption=peso_caption, peso_description=peso_description, umbral=umbral)
+
+        execution_time = (time.time() - start_time) * 1000
+        out_results: List[HybridSearchResultImage] = []
+
+        for i, item in enumerate(results[:top_k]):
+            if isinstance(item, (list, tuple)) and len(item) >= 4:
+                pid = str(item[0])
+                img_s = float(item[1])
+                cap_s = float(item[2])
+                des_s = float(item[3])
+                combined = float(item[4]) if len(item) > 4 else (img_s * peso_imagen + cap_s * peso_caption + des_s * peso_description)
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                pid = str(item[0])
+                combined = float(item[1])
+                img_s = cap_s = des_s = combined
+            else:
+                pid = str(item)
+                combined = 1.0 - (i * 0.1)
+                img_s = cap_s = des_s = combined
+
+            product_detail = None
+            if include_product_details:
+                p = service.get_product_by_id(pid)
+                if p:
+                    product_detail = ProductResponseImage(
+                        id=p.id, title=p.title, description=p.description, image_url=p.image_url
+                    )
+
+            sr = HybridSearchResultImage(
+                product_id=pid,
+                image_score=img_s,
+                caption_score=cap_s,
+                description_score=des_s,
+                score=combined,
+                product=product_detail
+            )
+            out_results.append(sr)
+
+        return HybridImageSearchResponse(
+            results=out_results,
+            query=query,
+            total_results=len(out_results),
+            execution_time_ms=execution_time
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] Hybrid image+description search failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Hybrid image+description search failed")
+
+
 @router.get("/stats",
     response_model=StatsResponse,
     summary="Search statistics",
@@ -207,6 +562,8 @@ async def get_search_stats(
             total_products=stats["total_products"],
             vector_index_size=stats["vector_index_size"],
             bm25_index_size=stats["bm25_index_size"],
+            image_index_size=stats["image_index_size"],
+            caption_index_size=stats["caption_index_size"],
             vector_dimension=stats["vector_dimension"],
             default_weights=stats["default_weights"],
             default_top_k=stats["default_top_k"]

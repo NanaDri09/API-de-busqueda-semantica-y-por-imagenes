@@ -2,12 +2,19 @@ from typing import List, Optional, Dict, Any
 from ..models.product import Product, ProductCreate, ProductUpdate
 from ..repositories.vector_repository import VectorRepository
 from ..repositories.bm25_repository import BM25Repository
+from ..repositories.image_repository import ImageRepository
+from ..repositories.caption_repository import CaptionRepository
 from ..services.search_service import SearchService
 from ..services.rrf_service import RRFService
+from ..services.image_service import ImageService
 from ..services.multi_stage_service import MultiStageService
 from ..models.search_config import SearchStrategy
 from ..config.settings import settings
 import logging
+from PIL import Image
+import io
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +24,13 @@ class ProductService:
     
     def __init__(self):
         """Initialize the product service with repositories and search service."""
+        self.image_service = ImageService()
         self.vector_repo = VectorRepository()
         self.bm25_repo = BM25Repository()
+        self.image_repo = ImageRepository(self.image_service)
+        self.caption_repo = CaptionRepository(self.image_service, self.vector_repo.embedding_service)
         self.rrf_service = RRFService()
-        self.search_service = SearchService(self.vector_repo, self.bm25_repo, self.rrf_service)
+        self.search_service = SearchService(self.vector_repo, self.bm25_repo, self.image_repo, self.caption_repo, self.image_service, self.rrf_service)
         self.multi_stage_service = MultiStageService(self.rrf_service)
         
         # Try to load existing indexes
@@ -29,6 +39,17 @@ class ProductService:
             logger.info("Loaded existing vector index")
         except Exception as e:
             logger.info(f"No existing vector index found: {e}")
+        try:
+            self.image_repo.load_index()
+            logger.info("Loaded existing image index")
+        except Exception as e:
+            logger.info(f"No existing image index found: {e}")
+        try:
+            self.caption_repo.load_index()
+            logger.info("Loaded existing caption index")
+        except Exception as e:
+            logger.info(f"No existing caption index found: {e}")
+
         
         # Sync BM25 index with vector repo products if any exist
         if self.vector_repo.get_product_count() > 0:
@@ -36,7 +57,13 @@ class ProductService:
             self.bm25_repo.create_index(products)
             logger.info(f"Synced BM25 index with {len(products)} products")
     
-    def create_product(self, id: str, title: str, description: str) -> Product:
+        # Agregar logging para verificar el estado de los índices
+        logger.info(f"Vector index count: {self.vector_repo.get_product_count()}")
+        logger.info(f"Image index count: {self.image_repo.get_product_count()}")
+        logger.info(f"Caption index count: {self.caption_repo.get_product_count()}")
+        logger.info(f"BM25 index count: {self.bm25_repo.get_product_count()}")
+
+    def create_product(self, id: str, title: str, description: str, image: Image.Image) -> Product:
         """
         Create a new product and add it to both indexes.
         
@@ -52,14 +79,23 @@ class ProductService:
             ValueError: If validation fails or product already exists
             Exception: If embedding generation fails
         """
+        # Tomas y conviertes la imagen a bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format=image.format if image.format else 'PNG')
+        image_bytes = img_byte_arr.getvalue()
+
+        # Url de la imagen
+        image_url = Product.set_image(self, image_bytes, filename_hint=id)
+
         # Validate input using Pydantic
-        product_data = ProductCreate(id=id, title=title, description=description)
+        product_data = ProductCreate(id=id, title=title, description=description, image_url=image_url)
         
         # Create Product object
         product = Product(
             id=product_data.id,
             title=product_data.title,
-            description=product_data.description
+            description=product_data.description,
+            image_url=product_data.image_url
         )
         
         logger.info(f"Creating product: {product.id}")
@@ -67,42 +103,43 @@ class ProductService:
         # Add to both repositories
         self.vector_repo.add_product(product)
         self.bm25_repo.add_product(product)
+        self.image_repo.add_image(product)
+        self.caption_repo.add_caption(product)
         
         # Save vector index
         self.vector_repo.save_index()
+        self.caption_repo.save_index()
+        self.image_repo.save_index()
         
         logger.info(f"Successfully created product: {product.id}")
         return product
     
-    def update_product(self, id: str, title: str = None, description: str = None) -> Product:
-        """
-        Update an existing product.
-        
-        Args:
-            id: Product identifier
-            title: New title (optional)
-            description: New description (optional)
-            
-        Returns:
-            Updated Product object
-            
-        Raises:
-            ValueError: If product doesn't exist or validation fails
-            Exception: If embedding generation fails
-        """
+    def update_product(self, id: str, title: str = None, description: str = None, image: Image.Image = None) -> Product:
+
         # Check if product exists
         existing_product = self.vector_repo.get_product_by_id(id)
         if not existing_product:
             raise ValueError(f"Product with ID {id} does not exist")
         
+        if image is not None:
+            # Tomas y conviertes la imagen a bytes
+            img_byte_arr = io.BytesIO()
+            image.save(img_byte_arr, format=image.format if image.format else 'PNG')
+            image_bytes = img_byte_arr.getvalue()
+
+            # Url de la imagen
+            url = Product.set_image(self, image_bytes, filename_hint=id)
+
+
         # Validate update data
-        update_data = ProductUpdate(title=title, description=description)
+        update_data = ProductUpdate(title=title, description=description, image_url=url)
         
         # Create updated product
         updated_product = Product(
             id=id,
             title=update_data.title if update_data.title is not None else existing_product.title,
-            description=update_data.description if update_data.description is not None else existing_product.description
+            description=update_data.description if update_data.description is not None else existing_product.description,
+            image_url = url if image is not None else existing_product.image_url
         )
         
         logger.info(f"Updating product: {id}")
@@ -110,9 +147,13 @@ class ProductService:
         # Update in both repositories
         self.vector_repo.update_product(updated_product)
         self.bm25_repo.update_product(updated_product)
+        self.image_repo.update_image(updated_product)
+        self.caption_repo.update_caption(updated_product)
         
         # Save vector index
         self.vector_repo.save_index()
+        self.caption_repo.save_index()
+        self.image_repo.save_index()
         
         logger.info(f"Successfully updated product: {id}")
         return updated_product
@@ -135,9 +176,13 @@ class ProductService:
         # Delete from both repositories
         self.vector_repo.delete_product(id)
         self.bm25_repo.delete_product(id)
+        self.image_repo.delete_image(id)
+        self.caption_repo.delete_caption(id)
         
         # Save vector index
         self.vector_repo.save_index()
+        self.caption_repo.save_index()
+        self.image_repo.save_index()
         
         logger.info(f"Successfully deleted product: {id}")
         return True
@@ -238,7 +283,10 @@ class ProductService:
                 "vector": settings.DEFAULT_VECTOR_WEIGHT
             },
             "default_top_k": settings.DEFAULT_TOP_K,
-            "vector_dimension": settings.VECTOR_DIMENSION
+            "vector_dimension": settings.VECTOR_DIMENSION,
+            # Agregar estadísticas de imágenes y captions
+            "image_index_size": self.image_repo.get_product_count(),
+            "caption_index_size": self.caption_repo.get_product_count()
         })
         return stats
     
@@ -261,9 +309,12 @@ class ProductService:
         self.bm25_repo.create_index(products)
         
         # Vector index rebuilds automatically when needed
+
         
         # Save vector index
         self.vector_repo.save_index()
+        self.caption_repo.save_index()
+        self.image_repo.save_index()
         
         logger.info(f"Successfully rebuilt indexes for {len(products)} products")
     
@@ -282,10 +333,24 @@ class ProductService:
         self.vector_repo.id_to_index_map.clear()
         self.vector_repo._next_index = 0
         
+        self.image_repo.products.clear()
+        self.image_repo.index = None
+        self.image_repo.product_id_map.clear()
+        self.image_repo.id_to_index_map.clear()
+        self.image_repo._next_index = 0
+
+        self.caption_repo.products.clear()
+        self.caption_repo.index = None
+        self.caption_repo.product_id_map.clear()
+        self.caption_repo.id_to_index_map.clear()
+        self.caption_repo._next_index = 0
+
         self.bm25_repo.clear_index()
         
         # Save empty state
         self.vector_repo.save_index()
+        self.caption_repo.save_index()
+        self.image_repo.save_index()
         
         logger.info("Successfully cleared all product data")
     

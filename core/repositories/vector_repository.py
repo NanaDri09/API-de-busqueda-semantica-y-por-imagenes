@@ -233,7 +233,7 @@ class VectorRepository:
         
         if self.index is not None:
             # Save FAISS index
-            faiss.write_index(self.index, os.path.join(path, "faiss_index.bin"))
+            faiss.write_index(self.index, os.path.join(path, "faiss_index_tittle_des.bin"))
             
             # Save mappings and products
             metadata = {
@@ -260,7 +260,7 @@ class VectorRepository:
         if path is None:
             path = settings.VECTOR_STORE_PATH
         
-        index_path = os.path.join(path, "faiss_index.bin")
+        index_path = os.path.join(path, "faiss_index_tittle_des.bin")
         metadata_path = os.path.join(path, "metadata.pkl")
         
         if os.path.exists(index_path) and os.path.exists(metadata_path):

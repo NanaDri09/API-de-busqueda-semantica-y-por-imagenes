@@ -6,6 +6,9 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+# al inicio
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).parent))
@@ -64,12 +67,19 @@ app = FastAPI(
     * **Batch Operations**: Efficient bulk operations for large datasets
     * **Real-time Indexing**: Automatic search index updates
     * **Comprehensive Statistics**: Search system monitoring and metrics
+    * **Health Checks**: Endpoint to verify service status
+    * **Search by image**: Upload an image to find similar products
+    * **Search by caption**: Generate a caption for an image and search by it
+    * **Hybrid search Image + text**: Combine image and text queries for refined search results
+    * **Hybrid search image: use an image to search products similar with the image + caption generated with the image + description**
     
     ## Search Types
     
     * **Hybrid**: Combines BM25 and vector search with configurable weights
     * **Semantic**: Uses OpenAI embeddings for meaning-based search
     * **Keyword**: Traditional BM25 for exact term matching
+    * **Image**: Search using image embeddings
+    * **Caption**: Search using captions generated from images
     
     ## Authentication
     
