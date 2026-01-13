@@ -55,6 +55,109 @@ def product_to_response(product: Product) -> ProductResponseImage:
 
 import os
 from pathlib import Path
+import psycopg2
+
+@router.post("/load-from-database",
+    response_model=BatchResponse,
+    status_code=status.HTTP_201_CREATED)
+async def load_products_from_database(
+    request: Request,
+    service: ProductService = Depends(get_product_service),
+    api_key: Optional[str] = Depends(verify_api_key)
+):
+    """Load products from PostgreSQL database and add them to search indices."""
+    request_id = get_request_id(request)
+    start_time = time.time()
+    
+    successful = []
+    failed = []
+    
+    db_config = {
+        'dbname': 'Tesis',
+        'user': 'postgres', 
+        'password': '1234',
+        'host': 'localhost',
+        'port': '5433'
+    }
+    
+    conn = None
+    cursor = None
+    
+    try:
+        # Connect to database
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
+        
+        # Query products from database
+        cursor.execute("""
+            SELECT p.id_producto, p.titulo, p.descripcion, p.image_path, p.caption
+            FROM producto p
+        """)
+        
+        products_data = cursor.fetchall()
+        
+        for product_row in products_data:
+            try:
+                product_id, title, description, image_path, caption = product_row
+                
+                if not all([product_id, title, description, image_path]):
+                    failed.append({
+                        "id": product_id or "unknown",
+                        "error": "Missing required fields"
+                    })
+                    continue
+                
+                # Crear el producto directamente
+                product = Product(
+                    id=product_id,
+                    title=title,
+                    description=description,
+                    image_url=image_path
+                )
+                
+                # Agregar a todos los repositorios manualmente
+                service.vector_repo.add_product(product)
+                service.bm25_repo.add_product(product)
+                service.image_repo.add_image(product)
+                service.caption_repo.add_caption(product)
+                
+                successful.append(product.id)
+                logger.debug(f"Successfully loaded product {product_id} from database [Request: {request_id}]")
+                
+            except Exception as e:
+                failed.append({
+                    "id": product_row[0] if product_row else 'unknown',
+                    "error": f"Loading failed: {str(e)}"
+                })
+        
+        # Save all indices
+        service.vector_repo.save_index()
+        service.caption_repo.save_index()
+        service.image_repo.save_index()
+        
+        execution_time = (time.time() - start_time) * 1000
+        
+        return BatchResponse(
+            successful=successful,
+            failed=failed,
+            total_processed=len(products_data),
+            success_count=len(successful),
+            failure_count=len(failed),
+            execution_time_ms=execution_time
+        )
+        
+    except Exception as e:
+        logger.error(f"Database error: {e} [Request: {request_id}]")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
 
 @router.post("/load-from-json",
     response_model=BatchResponse,

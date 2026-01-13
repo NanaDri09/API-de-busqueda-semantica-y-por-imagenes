@@ -73,7 +73,7 @@ class CaptionRepository:
         logger.info(f"Successfully created FAISS caption index with {len(images)} images")
 
 
-    def add_caption(self, product: Product) -> None:
+    def add_caption(self, product: Product, caption: str = None) -> None:
         """
         Add a single caption embedding to the FAISS index.
 
@@ -83,7 +83,13 @@ class CaptionRepository:
 
         logger.info(f"Adding caption {product.id} to FAISS index")
 
-        caption = self.image_service.generar_descripcion_imagen(product.image_url)
+        if caption is None:
+            caption = self.image_service.generar_descripcion_imagen(product.image_url)
+        
+        if not caption:
+            logger.warning(f"No caption generated for product {product.id}")
+            return
+            
         embeddings = self.embedding_service.generate_embedding(caption)
         embedding_array = np.array([embeddings], dtype=np.float32)    
         

@@ -81,7 +81,18 @@ class ProductService:
         """
         # Tomas y conviertes la imagen a bytes
         img_byte_arr = io.BytesIO()
-        image.save(img_byte_arr, format=image.format if image.format else 'PNG')
+        fmt = image.format if image.format else 'PNG'
+        img_to_save = image
+        # Si guardamos como JPEG y la imagen tiene alpha, convertir a RGB
+        try:
+            if fmt.upper() in ('JPG', 'JPEG') and hasattr(image, 'mode') and ('A' in image.mode):
+                img_to_save = image.convert('RGB')
+        except Exception:
+            # En caso de cualquier problema, convertir a RGB como fallback
+            if fmt.upper() in ('JPG', 'JPEG'):
+                img_to_save = image.convert('RGB')
+
+        img_to_save.save(img_byte_arr, format=fmt)
         image_bytes = img_byte_arr.getvalue()
 
         # Url de la imagen
@@ -124,7 +135,16 @@ class ProductService:
         if image is not None:
             # Tomas y conviertes la imagen a bytes
             img_byte_arr = io.BytesIO()
-            image.save(img_byte_arr, format=image.format if image.format else 'PNG')
+            fmt = image.format if image.format else 'PNG'
+            img_to_save = image
+            try:
+                if fmt.upper() in ('JPG', 'JPEG') and hasattr(image, 'mode') and ('A' in image.mode):
+                    img_to_save = image.convert('RGB')
+            except Exception:
+                if fmt.upper() in ('JPG', 'JPEG'):
+                    img_to_save = image.convert('RGB')
+
+            img_to_save.save(img_byte_arr, format=fmt)
             image_bytes = img_byte_arr.getvalue()
 
             # Url de la imagen
