@@ -30,6 +30,8 @@ from ..dependencies import get_product_service, get_request_id, verify_api_key
 from datetime import datetime, timezone
 import logging
 
+import requests
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
@@ -42,6 +44,17 @@ router = APIRouter(
         500: {"model": ErrorResponse, "description": "Internal server error"}
     }
 )
+
+
+def get_db_connection():
+    """Get database connection."""
+    return psycopg2.connect(
+        dbname='Tesis',
+        user='postgres', 
+        password='1234',
+        host='localhost',
+        port='5433'
+    )
 
 
 def product_to_response(product: Product) -> ProductResponseImage:
@@ -253,7 +266,7 @@ async def create_product(
     id: str = Form(..., min_length=1, max_length=500),
     title: str = Form(..., min_length=1, max_length=500),
     description: str = Form(..., min_length=1, max_length=5000),
-    file: UploadFile = File(...),  # obligamos imagen; si quieres opcional usa Optional[UploadFile]=File(None)
+    file: UploadFile = File(...),
     image_filename_hint: Optional[str] = Form(None, max_length=300),
     service: ProductService = Depends(get_product_service),
     api_key: Optional[str] = Depends(verify_api_key),
@@ -261,11 +274,12 @@ async def create_product(
     """Create a product via multipart/form-data with form fields + file."""
     request_id = get_request_id(request)
     start_time = time.time()
+    conn = None
+    cursor = None
 
     try:
-        # Validar los campos con Pydantic (levanta ValidationError -> 422 si falla)
+        # Validar campos
         try:
-            # construimos el objeto Pydantic para aplicar tus validadores
             product_request = ProductCreateRequest(
                 id=id,
                 title=title,
@@ -274,10 +288,9 @@ async def create_product(
                 image_filename_hint=image_filename_hint
             )
         except Exception as ve:
-            # Normalmente FastAPI transforma ValidationError a 422, aquí lo convertimos explícitamente
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
 
-        # Leer y validar la imagen subida
+        # Leer y validar imagen
         try:
             file_bytes = await file.read()
             image_obj = Image.open(io.BytesIO(file_bytes)).convert("RGB")
@@ -286,13 +299,12 @@ async def create_product(
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Error reading uploaded file: {e}")
         finally:
-            # opcional: devolver el cursor del UploadFile a inicio (por si alguien lo reutiliza)
             try:
                 await file.seek(0)
             except Exception:
                 pass
 
-        # Llamar al servicio para crear el producto
+        # Crear producto en índices
         product = service.create_product(
             id=product_request.id,
             title=product_request.title,
@@ -300,18 +312,55 @@ async def create_product(
             image=image_obj
         )
 
+        # Guardar en base de datos
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Insertar producto
+        cursor.execute("""
+            INSERT INTO producto (id_producto, titulo, descripcion, image_path)
+            VALUES (%s, %s, %s, %s)
+        """, (product.id, product.title, product.description, product.image_url))
+        
+        # Generar embeddings
+        title_embedding = service.vector_repo.embedding_service.generate_embedding(product.title)
+        desc_embedding = service.vector_repo.embedding_service.generate_embedding(product.description)
+        image_embedding = service.image_service._compute_image_embedding(product.image_url).flatten().tolist()
+        
+        # Generar caption y su embedding
+        caption = service.image_service.generar_descripcion_imagen(product.image_url)
+        caption_embedding = service.vector_repo.embedding_service.generate_embedding(caption) if caption else None
+        
+        # Insertar embeddings
+        cursor.execute("""
+            INSERT INTO embeddings (id_producto, embedding_titulo, embedding_descripcion, embedding_imagen, embedding_caption)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (product.id, title_embedding, desc_embedding, image_embedding, caption_embedding))
+        
+        conn.commit()
+
         execution_time = (time.time() - start_time) * 1000
         logger.info(f"Successfully created product {product.id} in {execution_time:.1f}ms [Request: {request_id}]")
         return product_to_response(product)
 
     except HTTPException:
+        if conn:
+            conn.rollback()
         raise
     except ValueError as ve:
-        # errores de negocio (ej. producto ya existe)
+        if conn:
+            conn.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(ve))
     except Exception as e:
+        if conn:
+            conn.rollback()
         logger.error(f"Unexpected error creating product: {e} [Request: {request_id}]")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error occurred")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
         
 @router.get("/{product_id}",
@@ -344,81 +393,123 @@ async def get_product(
     summary="Update product",
     description="Update an existing product's title and/or description. The product will be re-indexed automatically.")
 async def update_product(
+    product_id: str,
     request: Request,
-    id: str = Form(..., min_length=1, max_length=500),
-    title: Optional[str] = Form(..., min_length=1, max_length=500),
-    description: Optional[str] = Form(..., min_length=1, max_length=5000),
-    file: Optional[UploadFile] = File(...),  
+    title: Optional[str] = Form(None, min_length=1, max_length=500),
+    description: Optional[str] = Form(None, min_length=1, max_length=5000),
+    file: Optional[UploadFile] = File(None),  
     image_filename_hint: Optional[str] = Form(None, max_length=300),
     service: ProductService = Depends(get_product_service),
     api_key: Optional[str] = Depends(verify_api_key),
 ):
     """Update an existing product."""
     request_id = get_request_id(request)
+    conn = None
+    cursor = None
     
     try:
-        logger.info(f"Updating product {id} [Request: {request_id}]")
-        product = service.get_product_by_id(id)
+        logger.info(f"Updating product {product_id} [Request: {request_id}]")
+        product = service.get_product_by_id(product_id)
+        if not product:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product with ID '{product_id}' not found")
 
+        # Usar valores existentes si no se proporcionan nuevos
         if title is None:
             title = product.title
         if description is None:
             description = product.description   
 
         image_obj = None
+        image_url = product.image_url
 
         if file is not None:
             try:
                 file_bytes = await file.read()
                 image_obj = Image.open(io.BytesIO(file_bytes)).convert("RGB")
             except Exception as e:
-                logger.warning(f"Invalid uploaded file for product update {id}: {e} [Request: {request_id}]")
+                logger.warning(f"Invalid uploaded file for product update {product_id}: {e} [Request: {request_id}]")
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is not a valid image")
-        else: # Si no hay archivo, intentar obtener la imagen desde product.image_url
-            url = product.image_url  # uso del nombre `url` según pediste
-            if url:
+        else:
+            # Si no hay archivo, usar imagen existente
+            if product.image_url and product.image_url.startswith(('http://', 'https://')):
                 try:
-                    logger.info(f"No file uploaded; downloading image from URL for product {id}: {url} [Request: {request_id}]")
-                    resp = requests.get(url, timeout=10)
+                    logger.info(f"Using existing image URL for product {product_id}: {product.image_url} [Request: {request_id}]")
+                    resp = requests.get(product.image_url, timeout=10)
                     resp.raise_for_status()
                     image_bytes = resp.content
                     image_obj = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-                except requests.exceptions.RequestException as re:
-                    logger.warning(f"Failed to download image from URL for product {id}: {re} [Request: {request_id}]")
-                    image_obj = None  # permitimos continuar sin imagen
                 except Exception as e:
-                    logger.warning(f"Invalid image data from product.image_url for product {id}: {e} [Request: {request_id}]")
+                    logger.warning(f"Failed to download existing image for product {product_id}: {e} [Request: {request_id}]")
                     image_obj = None
             else:
-                logger.info(f"No file uploaded and no product.image_url present for product {id} [Request: {request_id}]")
+                logger.info(f"No image update for product {product_id} [Request: {request_id}]")
                 image_obj = None
 
-        # Llamar al servicio de actualización del producto.
-        # Ajusta los nombres de argumentos si tu service.update_product usa otros.
+        # Actualizar en índices
         updated_product = service.update_product(
-            id=id,
+            id=product_id,
             title=title,
             description=description,
             image=image_obj
         )
 
-        logger.info(f"Successfully updated product {id} [Request: {request_id}]")
+        # Actualizar en base de datos
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Actualizar producto
+        cursor.execute("""
+            UPDATE producto 
+            SET titulo = %s, descripcion = %s, image_path = %s
+            WHERE id_producto = %s
+        """, (updated_product.title, updated_product.description, updated_product.image_url, product_id))
+        
+        # Regenerar embeddings
+        title_embedding = service.vector_repo.embedding_service.generate_embedding(updated_product.title)
+        desc_embedding = service.vector_repo.embedding_service.generate_embedding(updated_product.description)
+        
+        # Actualizar embeddings de texto
+        cursor.execute("""
+            UPDATE embeddings 
+            SET embedding_titulo = %s, embedding_descripcion = %s
+            WHERE id_producto = %s
+        """, (title_embedding, desc_embedding, product_id))
+        
+        # Si hay nueva imagen, actualizar embedding de imagen y caption
+        if image_obj:
+            image_embedding = service.image_service._compute_image_embedding(updated_product.image_url).flatten().tolist()
+            caption = service.image_service.generar_descripcion_imagen(updated_product.image_url)
+            caption_embedding = service.vector_repo.embedding_service.generate_embedding(caption) if caption else None
+            cursor.execute("""
+                UPDATE embeddings 
+                SET embedding_imagen = %s, embedding_caption = %s
+                WHERE id_producto = %s
+            """, (image_embedding, caption_embedding, product_id))
+        
+        conn.commit()
+
+        logger.info(f"Successfully updated product {product_id} [Request: {request_id}]")
         return product_to_response(updated_product)
 
     except ValueError as e:
+        if conn:
+            conn.rollback()
         logger.warning(f"Product update failed: {e} [Request: {request_id}]")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except HTTPException:
+        if conn:
+            conn.rollback()
         raise
     except Exception as e:
+        if conn:
+            conn.rollback()
         logger.error(f"Unexpected error updating product: {e} [Request: {request_id}]", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error occurred")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 @router.delete("/{product_id}",
     response_model=MessageResponse,
     summary="Delete product",
@@ -431,10 +522,21 @@ async def delete_product(
 ):
     """Delete a product."""
     request_id = get_request_id(request)
+    conn = None
+    cursor = None
     
     try:
         logger.info(f"Deleting product {product_id} [Request: {request_id}]")
         
+        # Verificar que el producto existe
+        product = service.get_product_by_id(product_id)
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Product with ID '{product_id}' not found"
+            )
+        
+        # Eliminar de índices
         success = service.delete_product(product_id)
         if not success:
             logger.warning(f"Product {product_id} not found for deletion [Request: {request_id}]")
@@ -443,6 +545,18 @@ async def delete_product(
                 detail=f"Product with ID '{product_id}' not found"
             )
         
+        # Eliminar de base de datos
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Eliminar embeddings primero (por foreign key)
+        cursor.execute("DELETE FROM embeddings WHERE id_producto = %s", (product_id,))
+        
+        # Eliminar producto
+        cursor.execute("DELETE FROM producto WHERE id_producto = %s", (product_id,))
+        
+        conn.commit()
+        
         logger.info(f"Successfully deleted product {product_id} [Request: {request_id}]")
         return MessageResponse(
             message=f"Product '{product_id}' deleted successfully",
@@ -450,17 +564,30 @@ async def delete_product(
         )
         
     except ValueError as e:
+        if conn:
+            conn.rollback()
         logger.warning(f"Product deletion failed: {e} [Request: {request_id}]")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
+    except HTTPException:
+        if conn:
+            conn.rollback()
+        raise
     except Exception as e:
+        if conn:
+            conn.rollback()
         logger.error(f"Unexpected error deleting product: {e} [Request: {request_id}]")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error occurred"
         )
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 @router.get("/",
