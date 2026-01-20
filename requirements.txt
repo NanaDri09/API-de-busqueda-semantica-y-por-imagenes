@@ -1,8 +1,0 @@
-openai
-langchain
-faiss-cpu
-pydantic
-python-dotenv
-numpy
-langchain-community
-rank-bm25
