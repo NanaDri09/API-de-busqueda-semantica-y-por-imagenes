@@ -10,12 +10,13 @@ A modular semantic search system combining BM25 keyword matching and vector embe
 - **Persistent Storage**: FAISS vector store with automatic saving/loading
 - **Batch Operations**: Efficient bulk product creation and indexing
 - **Multiple Search Types**: Hybrid, semantic-only, and keyword-only search modes
+- **Image Search**: Types of searches based on visual approaches
 
 ## Installation
 
 1. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -r requirements_act.txt
 ```
 
 2. Set up environment variables:
@@ -127,6 +128,16 @@ Main interface for all product operations.
    - Uses only BM25 algorithm
    - Excellent for exact phrase matching
    - Fast and deterministic
+4. **Image Search** (added)
+   - Applies semantic search logic to an image provided in the query.
+5. **Caption Search** (added)
+   - Performs the same process as image search, but instead of transforming the image to an embedding, it is described.
+   - The search runs with the obtained description and compares it to the embeddings of product image descriptions stored.
+6. **Image-Description Search** (added)
+   - This mode uses the product descriptions to run the search from the description of the query image.
+   - Follows the same process as caption search.
+7. **Image-and-Description Hybrid** (added)
+   - A weighted hybrid search that combines the three previous modalities (image, caption, and descriptions).
 
 ## Examples
 
@@ -242,11 +253,10 @@ The system includes comprehensive error handling:
 
 This core module is designed to be easily extended with:
 
-- FastAPI REST endpoints
 - Additional vector databases (Pinecone, Weaviate)
-- Custom embedding models
 - Advanced search filters
 - Real-time updates via webhooks
+- User-history-based recommendation system
 
 ## License
 
